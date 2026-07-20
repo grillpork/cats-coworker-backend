@@ -4,8 +4,9 @@ export const usersTable = pgTable("users", {
     name: varchar({ length: 255 }).notNull(),
     email: varchar({ length: 255 }).notNull().unique(),
     password: varchar({ length: 255 }).notNull(),
-    role: varchar({ length: 50 }).default("employee").notNull(),
+    roleId: integer("role_id").references(() => RolesTable.id),
     avatar: varchar({ length: 255 }),
+    sp: integer().default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

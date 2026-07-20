@@ -1,7 +1,7 @@
 import argon2 from "argon2";
 import jwt from "jsonwebtoken";
 import { db } from "../../config/db.js";
-import { usersTable } from "../../db/schema.js";
+import { usersTable, RolesTable } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 import "dotenv/config";
 
@@ -36,11 +36,11 @@ export const register = async (req, res) => {
       id: usersTable.id,
       name: usersTable.name,
       email: usersTable.email,
-      role: usersTable.role,
+      roleId: usersTable.roleId,
     });
 
     // Generate JWT token
-    const token = jwt.sign({ id: newUser.id, email: newUser.email, role: newUser.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: newUser.id, email: newUser.email, roleId: newUser.roleId }, JWT_SECRET, {
       expiresIn: "24h",
     });
 
@@ -78,7 +78,7 @@ export const login = async (req, res) => {
     }
 
     // Generate token
-    const token = jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, {
+    const token = jwt.sign({ id: user.id, email: user.email, roleId: user.roleId }, JWT_SECRET, {
       expiresIn: "24h",
     });
 
@@ -89,7 +89,7 @@ export const login = async (req, res) => {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: user.role,
+        roleId: user.roleId,
       },
     });
   } catch (error) {
@@ -104,10 +104,16 @@ export const getProfile = async (req, res) => {
       id: usersTable.id,
       name: usersTable.name,
       email: usersTable.email,
-      role: usersTable.role,
+      roleId: usersTable.roleId,
+      roleName: RolesTable.name,
       avatar: usersTable.avatar,
+      sp: usersTable.sp,
       createdAt: usersTable.createdAt,
-    }).from(usersTable).where(eq(usersTable.id, req.user.id)).limit(1);
+    })
+    .from(usersTable)
+    .leftJoin(RolesTable, eq(usersTable.roleId, RolesTable.id))
+    .where(eq(usersTable.id, req.user.id))
+    .limit(1);
 
     const user = users[0];
     if (!user) {
