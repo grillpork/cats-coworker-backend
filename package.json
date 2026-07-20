@@ -8,7 +8,7 @@
   "main": "src/main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon src/main.js",
+    "start": "node src/main.js",
     "dev": "nodemon src/main.js",
     "db:pull": "drizzle-kit pull --config=src/drizzle.config.js",
     "db:push": "drizzle-kit push --config=src/drizzle.config.js",
