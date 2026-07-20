@@ -1,0 +1,38 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "src/main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "nodemon src/main.js",
+    "dev": "nodemon src/main.js",
+    "db:pull": "drizzle-kit pull --config=src/drizzle.config.js",
+    "db:push": "drizzle-kit push --config=src/drizzle.config.js",
+    "db:generate": "drizzle-kit generate --config=src/drizzle.config.js",
+    "db:migrate": "drizzle-kit migrate --config=src/drizzle.config.js",
+    "db:studio": "drizzle-kit studio --config=src/drizzle.config.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "argon2": "^0.45.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "drizzle-orm": "^1.0.0-rc.4",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "nodemon": "^3.1.14",
+    "pg": "^8.22.0",
+    "shape": "^10.1.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.20.0",
+    "drizzle-kit": "^1.0.0-rc.4",
+    "tsx": "^4.23.1"
+  }
+}
