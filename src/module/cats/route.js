@@ -2,7 +2,7 @@ import express from "express";
 import { getAllCats, getCatById, createCat, updateCat, deleteCat, getUserInventory, addCatToInventory } from "./controller.js";
 import { authenticateToken } from "../../middleware/auth.js";
 import { upload } from "../../middleware/upload.js";
-import { getUserPlacements, placeCat, pickupCat } from "./placement.controller.js";
+import { getUserPlacements, placeCat, pickupCat, giftCat } from "./placement.controller.js";
 
 const router = express.Router();
 
@@ -11,6 +11,9 @@ router.get("/", getAllCats);
 // Cat Inventory Routes
 router.get("/inventory", authenticateToken, getUserInventory);
 router.post("/inventory", authenticateToken, addCatToInventory);
+
+// Gift Cat Route
+router.post("/gift", authenticateToken, giftCat);
 
 // Cat Placement Routes (Static routes must be above dynamic :id routes)
 router.get("/placements", authenticateToken, getUserPlacements);

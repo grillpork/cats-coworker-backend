@@ -275,6 +275,26 @@ wss.on("connection", (ws) => {
           }
         }
       }
+
+      if (data.type === "cat_gifted") {
+        const player = players.get(ws);
+        if (!player) return;
+
+        const payload = JSON.stringify({
+          type: "cat_gifted",
+          fromId: player.id,
+          fromName: player.username,
+          toId: data.giftedTo,
+          toName: data.giftedToName,
+          cat: data.cat
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (info.room === player.room && socket.readyState === 1) {
+            socket.send(payload);
+          }
+        }
+      }
     } catch (err) {
       console.error("WS Message Error:", err);
     }

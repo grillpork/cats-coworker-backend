@@ -1,5 +1,5 @@
 import { db } from "../../config/db.js";
-import { catPlacementsTable, userInventoryTable } from "../../db/schema.js";
+import { catPlacementsTable, userInventoryTable, usersTable } from "../../db/schema.js";
 import { eq, and } from "drizzle-orm";
 
 // Get all cat placements for the logged-in user
@@ -135,6 +135,62 @@ export const pickupCat = async (req, res) => {
     });
   } catch (error) {
     console.error("Pickup Cat Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Gift a cat to another user
+export const giftCat = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { friendId, catId } = req.body;
+
+    if (!friendId || !catId) {
+      return res.status(400).json({ error: "friendId and catId are required" });
+    }
+
+    // Verify friend exists
+    const friendExists = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, friendId))
+      .limit(1);
+
+    if (friendExists.length === 0) {
+      return res.status(404).json({ error: "Target friend user not found" });
+    }
+
+    // Find the first instance of this cat in the user's inventory
+    const inventoryItem = await db
+      .select()
+      .from(userInventoryTable)
+      .where(
+        and(
+          eq(userInventoryTable.userId, userId),
+          eq(userInventoryTable.catId, catId)
+        )
+      )
+      .limit(1);
+
+    if (inventoryItem.length === 0) {
+      return res.status(404).json({ error: "You do not own this cat in your inventory" });
+    }
+
+    // Transfer ownership by updating userId to friendId
+    const [updated] = await db
+      .update(userInventoryTable)
+      .set({
+        userId: friendId,
+      })
+      .where(eq(userInventoryTable.id, inventoryItem[0].id))
+      .returning();
+
+    res.json({
+      message: "Cat gifted successfully",
+      gift: updated,
+    });
+  } catch (error) {
+    console.error("Gift Cat Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
