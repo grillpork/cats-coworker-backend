@@ -1,5 +1,5 @@
 import express from "express";
-import { register, login, getProfile } from "./controller.js";
+import { register, login, getProfile, googleOAuth, oauthLogin } from "./controller.js";
 import { authenticateToken } from "../../middleware/auth.js";
 import { rateLimiter } from "../../middleware/rateLimit.js";
 
@@ -10,6 +10,9 @@ const standardRateLimiter = rateLimiter(100, 15 * 60 * 1000); // 100 requests pe
 
 router.post("/register", authRateLimiter, register);
 router.post("/login", authRateLimiter, login);
+router.post("/google", authRateLimiter, googleOAuth);
+router.post("/google-login", authRateLimiter, googleOAuth);
+router.post("/oauth", authRateLimiter, oauthLogin);
 router.get("/me", standardRateLimiter, authenticateToken, getProfile);
 
 // Role CRUD Routes

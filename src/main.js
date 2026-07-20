@@ -66,33 +66,26 @@ wss.on("connection", (ws) => {
       const data = JSON.parse(messageStr);
       
       if (data.type === "join") {
-        const { user, x, y, room } = data;
-        if (!user || !user.id) return;
-        
+        const { user, room, x, y } = data;
         const targetRoom = room || "Server Room A";
 
-        // Count active players in targetRoom (excluding re-joining socket for same user)
-        const currentRoomPlayers = [];
-        for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && info.id !== user.id) {
-            currentRoomPlayers.push(info);
-          }
-        }
+        if (!user || !user.id) return;
 
-        if (currentRoomPlayers.length >= 6) {
+        // Count existing players in this target room
+        const roomPlayers = Array.from(players.values()).filter(p => p.room === targetRoom);
+        if (roomPlayers.length >= 6) {
           ws.send(JSON.stringify({
             type: "room_full",
-            reason: "Server room is full! (Maximum 6 players per room)"
+            message: "ห้องนี้มีผู้เล่นครบ 6 คนแล้ว ไม่สามารถเข้าร่วมได้"
           }));
-          ws.close();
           return;
         }
 
-        // Assign lowest available slotIndex (0 to 5)
-        const usedSlots = new Set(currentRoomPlayers.map(p => p.slotIndex));
+        // Find available slotIndex (0 to 5) in this room
+        const occupiedSlots = new Set(roomPlayers.map(p => p.slotIndex));
         let assignedSlot = 0;
         for (let i = 0; i < 6; i++) {
-          if (!usedSlots.has(i)) {
+          if (!occupiedSlots.has(i)) {
             assignedSlot = i;
             break;
           }
@@ -108,7 +101,12 @@ wss.on("connection", (ws) => {
           y: y || 400
         });
 
-        // 1. Send currently online players & assigned slot to newly joined player
+        if (!roomCatsMap.has(targetRoom)) {
+          roomCatsMap.set(targetRoom, {});
+        }
+        const currentRoomCats = roomCatsMap.get(targetRoom);
+
+        // 1. Send currently online players, assigned slot & room cats to newly joined player
         const onlinePlayers = [];
         for (const [socket, info] of players.entries()) {
           if (socket !== ws && info.room === targetRoom) {
@@ -119,7 +117,8 @@ wss.on("connection", (ws) => {
           type: "joined_room",
           slotIndex: assignedSlot,
           room: targetRoom,
-          players: onlinePlayers
+          players: onlinePlayers,
+          roomCats: currentRoomCats
         }));
 
         // 2. Broadcast the new player only to other connected clients in the same room
@@ -153,6 +152,104 @@ wss.on("connection", (ws) => {
         for (const [socket, info] of players.entries()) {
           if (socket !== ws && info.room === player.room && socket.readyState === ws.OPEN) {
             socket.send(moveAlert);
+          }
+        }
+      }
+
+      // Handle Real-Time Cat Deployment Synchronization
+      if (data.type === "sync_cats") {
+        const player = players.get(ws);
+        if (!player) return;
+        const targetRoom = player.room;
+        if (!roomCatsMap.has(targetRoom)) roomCatsMap.set(targetRoom, {});
+        const roomCats = roomCatsMap.get(targetRoom);
+
+        if (Array.isArray(data.cats)) {
+          data.cats.forEach((cat, idx) => {
+            const globalSlotIdx = player.slotIndex * 8 + idx;
+            if (cat) {
+              roomCats[globalSlotIdx] = cat;
+            } else {
+              delete roomCats[globalSlotIdx];
+            }
+          });
+        }
+
+        const syncPayload = JSON.stringify({
+          type: "sync_cats",
+          zoneIndex: player.slotIndex,
+          cats: data.cats,
+          roomCats
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+            socket.send(syncPayload);
+          }
+        }
+      }
+
+      if (data.type === "cat_placed") {
+        const player = players.get(ws);
+        if (!player) return;
+        const targetRoom = player.room;
+        if (!roomCatsMap.has(targetRoom)) roomCatsMap.set(targetRoom, {});
+        const roomCats = roomCatsMap.get(targetRoom);
+
+        roomCats[data.slotIndex] = data.cat;
+
+        const payload = JSON.stringify({
+          type: "cat_placed",
+          slotIndex: data.slotIndex,
+          cat: data.cat
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+            socket.send(payload);
+          }
+        }
+      }
+
+      if (data.type === "cat_removed") {
+        const player = players.get(ws);
+        if (!player) return;
+        const targetRoom = player.room;
+        if (!roomCatsMap.has(targetRoom)) roomCatsMap.set(targetRoom, {});
+        const roomCats = roomCatsMap.get(targetRoom);
+
+        delete roomCats[data.slotIndex];
+
+        const payload = JSON.stringify({
+          type: "cat_removed",
+          slotIndex: data.slotIndex
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+            socket.send(payload);
+          }
+        }
+      }
+
+      if (data.type === "cat_upgraded") {
+        const player = players.get(ws);
+        if (!player) return;
+        const targetRoom = player.room;
+        if (!roomCatsMap.has(targetRoom)) roomCatsMap.set(targetRoom, {});
+        const roomCats = roomCatsMap.get(targetRoom);
+
+        roomCats[data.slotIndex] = data.cat;
+
+        const payload = JSON.stringify({
+          type: "cat_upgraded",
+          slotIndex: data.slotIndex,
+          cat: data.cat
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+            socket.send(payload);
           }
         }
       }
