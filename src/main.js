@@ -58,7 +58,9 @@ const wss = new WebSocketServer({ server });
 
 // Map of socket -> player data
 const players = new Map();
+const roomCatsMap = new Map();
 global.activePlayersMap = players;
+global.activeRoomCatsMap = roomCatsMap;
 
 wss.on("connection", (ws) => {
   ws.on("message", (messageStr) => {
@@ -128,7 +130,7 @@ wss.on("connection", (ws) => {
         });
         
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
             socket.send(joinAlert);
           }
         }
@@ -150,7 +152,7 @@ wss.on("connection", (ws) => {
         });
 
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === player.room && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === player.room && socket.readyState === 1) {
             socket.send(moveAlert);
           }
         }
@@ -183,7 +185,7 @@ wss.on("connection", (ws) => {
         });
 
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
             socket.send(syncPayload);
           }
         }
@@ -205,7 +207,7 @@ wss.on("connection", (ws) => {
         });
 
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
             socket.send(payload);
           }
         }
@@ -226,7 +228,7 @@ wss.on("connection", (ws) => {
         });
 
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
             socket.send(payload);
           }
         }
@@ -248,7 +250,7 @@ wss.on("connection", (ws) => {
         });
 
         for (const [socket, info] of players.entries()) {
-          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
             socket.send(payload);
           }
         }
@@ -269,7 +271,7 @@ wss.on("connection", (ws) => {
       players.delete(ws);
 
       for (const [socket, info] of players.entries()) {
-        if (info.room === player.room && socket.readyState === ws.OPEN) {
+        if (info.room === player.room && socket.readyState === 1) {
           socket.send(leaveAlert);
         }
       }
