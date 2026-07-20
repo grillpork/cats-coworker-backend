@@ -33,8 +33,8 @@ export const placeCat = async (req, res) => {
       return res.status(400).json({ error: "cat object and slotIndex are required" });
     }
 
-    if (slotIndex < 0 || slotIndex > 5) {
-      return res.status(400).json({ error: "slotIndex must be between 0 and 5" });
+    if (slotIndex < 0 || slotIndex > 47) {
+      return res.status(400).json({ error: "slotIndex must be between 0 and 47" });
     }
 
     // Check if slot is already occupied by this user
@@ -102,7 +102,7 @@ export const pickupCat = async (req, res) => {
     const { slotIndex } = req.params;
     const slotIdx = parseInt(slotIndex, 10);
 
-    if (isNaN(slotIdx) || slotIdx < 0 || slotIdx > 5) {
+    if (isNaN(slotIdx) || slotIdx < 0 || slotIdx > 47) {
       return res.status(400).json({ error: "Invalid slotIndex" });
     }
 
