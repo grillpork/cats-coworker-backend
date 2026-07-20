@@ -100,7 +100,8 @@ wss.on("connection", (ws) => {
           room: targetRoom,
           slotIndex: assignedSlot,
           x: x || 600,
-          y: y || 400
+          y: y || 400,
+          heldCat: data.heldCat || null
         });
 
         if (!roomCatsMap.has(targetRoom)) {
@@ -251,6 +252,25 @@ wss.on("connection", (ws) => {
 
         for (const [socket, info] of players.entries()) {
           if (socket !== ws && info.room === targetRoom && socket.readyState === 1) {
+            socket.send(payload);
+          }
+        }
+      }
+
+      if (data.type === "update_held_cat") {
+        const player = players.get(ws);
+        if (!player) return;
+        
+        player.heldCat = data.heldCat;
+
+        const payload = JSON.stringify({
+          type: "player_held_cat_updated",
+          id: player.id,
+          heldCat: data.heldCat
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === player.room && socket.readyState === 1) {
             socket.send(payload);
           }
         }
