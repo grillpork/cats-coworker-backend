@@ -1,5 +1,5 @@
 import { db } from "../../config/db.js";
-import { mapsTable, spritesTable } from "../../db/schema.js";
+import { mapsTable, spritesTable, roomsTable } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "../../middleware/r2.js";
@@ -41,6 +41,63 @@ export const getActiveMap = async (req, res) => {
     res.json(maps[0]);
   } catch (error) {
     console.error("Get Active Map Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getAllMaps = async (req, res) => {
+  try {
+    const maps = await db.select().from(mapsTable);
+    res.json(maps);
+  } catch (error) {
+    console.error("Get All Maps Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createRoomMap = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name } = req.body;
+
+    if (!name) {
+      return res.status(400).json({ error: "Room name is required" });
+    }
+
+    // Check if room name already exists
+    const existing = await db.select().from(mapsTable).where(eq(mapsTable.name, name)).limit(1);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "Room name already exists" });
+    }
+
+    // Generate default tiles grid (15x20)
+    const rows = 15;
+    const cols = 20;
+    const tiles = Array(rows).fill(null).map((_, r) =>
+      Array(cols).fill(null).map((_, c) => {
+        if (r === 0 && c === 0) return "09";
+        if (r === 0 && c === cols - 1) return "10";
+        if (r === rows - 1 && c === 0) return "11";
+        if (r === rows - 1 && c === cols - 1) return "12";
+        if (r === 0) return "05";
+        if (r === rows - 1) return "06";
+        if (c === 0) return "07";
+        if (c === cols - 1) return "08";
+        return "01";
+      })
+    );
+
+    const [newMap] = await db.insert(mapsTable).values({
+      userId,
+      name,
+      rows,
+      cols,
+      tiles,
+    }).returning();
+
+    res.status(201).json(newMap);
+  } catch (error) {
+    console.error("Create Room Map Error:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -182,6 +239,178 @@ export const deleteSprite = async (req, res) => {
     res.json({ message: "Sprite deleted successfully" });
   } catch (error) {
     console.error("Delete Sprite Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const getAllRooms = async (req, res) => {
+  try {
+    const rooms = await db.select().from(roomsTable);
+    const roomsWithDetails = [];
+
+    for (const room of rooms) {
+      // Fetch map layout details
+      const maps = await db.select().from(mapsTable).where(eq(mapsTable.id, room.mapId)).limit(1);
+      const mapData = maps[0] || null;
+
+      // Get player count from active WebSocket sessions
+      const activePlayersMap = global.activePlayersMap;
+      let playerCount = 0;
+      if (activePlayersMap) {
+        playerCount = Array.from(activePlayersMap.values()).filter(
+          (p) => p.room === room.name
+        ).length;
+      }
+
+      roomsWithDetails.push({
+        ...room,
+        map: mapData,
+        playerCount,
+      });
+    }
+
+    res.json(roomsWithDetails);
+  } catch (error) {
+    console.error("Get All Rooms Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const createRoomInstance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, mapId } = req.body;
+
+    if (!name || !mapId) {
+      return res.status(400).json({ error: "Room name and mapId are required" });
+    }
+
+    // Check if room name already exists
+    const existing = await db.select().from(roomsTable).where(eq(roomsTable.name, name)).limit(1);
+    if (existing.length > 0) {
+      return res.status(400).json({ error: "Room name already exists" });
+    }
+
+    // Check if map template exists
+    const mapTemplate = await db.select().from(mapsTable).where(eq(mapsTable.id, mapId)).limit(1);
+    if (mapTemplate.length === 0) {
+      return res.status(400).json({ error: "Selected Map template does not exist" });
+    }
+
+    const [newRoom] = await db.insert(roomsTable).values({
+      name,
+      mapId,
+      hostId: userId,
+      maxPlayers: 10,
+    }).returning();
+
+    // Attach map layout details and 0 players
+    res.status(201).json({
+      ...newRoom,
+      map: mapTemplate[0],
+      playerCount: 0
+    });
+  } catch (error) {
+    console.error("Create Room Instance Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateRoomInstance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { name, mapId } = req.body;
+
+    // Find the room
+    const rooms = await db.select().from(roomsTable).where(eq(roomsTable.id, id)).limit(1);
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    const room = rooms[0];
+    // Check authorization (only host or admin can edit)
+    const userRole = req.user.roleName || "";
+    if (room.hostId !== userId && userRole.toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "You are not authorized to edit this room" });
+    }
+
+    const updateData = {};
+    if (name) {
+      // Check if name is taken
+      const existingName = await db.select().from(roomsTable)
+        .where(eq(roomsTable.name, name))
+        .limit(1);
+      if (existingName.length > 0 && existingName[0].id !== Number(id)) {
+        return res.status(400).json({ error: "Room name already exists" });
+      }
+      updateData.name = name;
+    }
+
+    if (mapId) {
+      const mapTemplate = await db.select().from(mapsTable).where(eq(mapsTable.id, mapId)).limit(1);
+      if (mapTemplate.length === 0) {
+        return res.status(400).json({ error: "Selected Map template does not exist" });
+      }
+      updateData.mapId = mapId;
+    }
+
+    const [updatedRoom] = await db
+      .update(roomsTable)
+      .set(updateData)
+      .where(eq(roomsTable.id, id))
+      .returning();
+
+    // Retrieve full details
+    const maps = await db.select().from(mapsTable).where(eq(mapsTable.id, updatedRoom.mapId)).limit(1);
+    res.json({
+      ...updatedRoom,
+      map: maps[0] || null
+    });
+  } catch (error) {
+    console.error("Update Room Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteRoomInstance = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    // Find the room
+    const rooms = await db.select().from(roomsTable).where(eq(roomsTable.id, id)).limit(1);
+    if (rooms.length === 0) {
+      return res.status(404).json({ error: "Room not found" });
+    }
+
+    const room = rooms[0];
+    // Check authorization (only host or admin can delete)
+    const userRole = req.user.roleName || "";
+    if (room.hostId !== userId && userRole.toLowerCase() !== "admin") {
+      return res.status(403).json({ error: "You are not authorized to delete this room" });
+    }
+
+    // Delete the room
+    await db.delete(roomsTable).where(eq(roomsTable.id, id));
+
+    // Also tell any online players in that room to disconnect/go home!
+    const activePlayersMap = global.activePlayersMap;
+    if (activePlayersMap) {
+      const payload = JSON.stringify({ type: "kicked", reason: "The host has closed this server room." });
+      for (const [socket, info] of activePlayersMap.entries()) {
+        if (info.room === room.name) {
+          if (socket.readyState === 1) {
+            socket.send(payload);
+            socket.close();
+          }
+        }
+      }
+    }
+
+    res.json({ message: "Room deleted successfully" });
+  } catch (error) {
+    console.error("Delete Room Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

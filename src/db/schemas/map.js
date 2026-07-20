@@ -20,3 +20,12 @@ export const spritesTable = pgTable("sprites", {
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const roomsTable = pgTable("rooms", {
+    id: integer().primaryKey().generatedAlwaysAsIdentity(),
+    name: varchar({ length: 255 }).unique().notNull(),
+    mapId: integer("map_id").references(() => mapsTable.id).notNull(),
+    hostId: integer("host_id").references(() => usersTable.id).notNull(),
+    maxPlayers: integer("max_players").default(10).notNull(),
+    createdAt: timestamp("created_at").defaultNow().notNull(),
+});

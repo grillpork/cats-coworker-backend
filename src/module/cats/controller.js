@@ -10,11 +10,31 @@ const processImage = async (file) => {
 
   const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.webp`;
 
-  // Process image with sharp
-  const buffer = await sharp(file.buffer)
-    .resize(800, 800, { fit: "inside", withoutEnlargement: true })
-    .webp({ quality: 80 })
-    .toBuffer();
+  let quality = 80;
+  let width = 800;
+  let height = 800;
+  let buffer;
+  const maxSize = 150 * 1024; // 150KB
+
+  // Loop to reduce quality and dimensions until the image size is under 150KB
+  do {
+    buffer = await sharp(file.buffer)
+      .resize(width, height, { fit: "inside", withoutEnlargement: true })
+      .webp({ quality })
+      .toBuffer();
+
+    if (buffer.length <= maxSize) {
+      break;
+    }
+
+    if (quality > 20) {
+      quality -= 10; // Reduce quality in steps of 10
+    } else {
+      // If quality is already low, start shrinking the dimensions
+      width = Math.round(width * 0.8);
+      height = Math.round(height * 0.8);
+    }
+  } while (buffer.length > maxSize && width > 100);
 
   // Upload to Cloudflare R2
   const command = new PutObjectCommand({

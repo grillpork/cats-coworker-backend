@@ -1,4 +1,6 @@
 import express from "express";
+import http from "http";
+import { WebSocketServer } from "ws";
 import cors from "cors";
 import morgan from "morgan";
 import "dotenv/config";
@@ -51,6 +53,150 @@ app.get("/users", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server });
+
+// Map of socket -> player data
+const players = new Map();
+global.activePlayersMap = players;
+
+wss.on("connection", (ws) => {
+  ws.on("message", (messageStr) => {
+    try {
+      const data = JSON.parse(messageStr);
+      
+      if (data.type === "join") {
+        const { user, x, y, room } = data;
+        if (!user || !user.id) return;
+        
+        const targetRoom = room || "Server Room A";
+
+        // Save player info associated with this socket
+        players.set(ws, {
+          id: user.id,
+          username: user.username || `User-${user.id}`,
+          room: targetRoom,
+          x: x || 600,
+          y: y || 400
+        });
+
+        // 1. Send currently online players in the same room to the newly joined player
+        const onlinePlayers = [];
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom) {
+            onlinePlayers.push(info);
+          }
+        }
+        ws.send(JSON.stringify({ type: "players_list", players: onlinePlayers }));
+
+        // 2. Broadcast the new player only to other connected clients in the same room
+        const joinAlert = JSON.stringify({
+          type: "player_joined",
+          player: players.get(ws)
+        });
+        
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && socket.readyState === ws.OPEN) {
+            socket.send(joinAlert);
+          }
+        }
+      }
+
+      if (data.type === "move") {
+        const player = players.get(ws);
+        if (!player) return;
+
+        player.x = data.x;
+        player.y = data.y;
+
+        // Broadcast move update to all other connected clients in the same room
+        const moveAlert = JSON.stringify({
+          type: "player_moved",
+          id: player.id,
+          x: player.x,
+          y: player.y
+        });
+
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === player.room && socket.readyState === ws.OPEN) {
+            socket.send(moveAlert);
+          }
+        }
+      }
+    } catch (err) {
+      console.error("WS Message Error:", err);
+    }
+  });
+
+  ws.on("close", () => {
+    const player = players.get(ws);
+    if (player) {
+      const leaveAlert = JSON.stringify({
+        type: "player_left",
+        id: player.id
+      });
+
+      players.delete(ws);
+
+      for (const [socket, info] of players.entries()) {
+        if (info.room === player.room && socket.readyState === ws.OPEN) {
+          socket.send(leaveAlert);
+        }
+      }
+    }
+  });
+});
+
+// Admin management endpoints for Server Room
+app.get("/api/admin/online-players", (req, res) => {
+  const online = [];
+  for (const info of players.values()) {
+    online.push(info);
+  }
+  res.json(online);
+});
+
+app.post("/api/admin/broadcast", (req, res) => {
+  const { message } = req.body;
+  if (!message) {
+    return res.status(400).json({ error: "Message is required" });
+  }
+
+  const payload = JSON.stringify({
+    type: "announcement",
+    message,
+  });
+
+  for (const socket of players.keys()) {
+    if (socket.readyState === 1) { // OPEN
+      socket.send(payload);
+    }
+  }
+
+  res.json({ message: "Announcement broadcasted successfully" });
+});
+
+app.post("/api/admin/kick/:id", (req, res) => {
+  const { id } = req.params;
+
+  let targetSocket = null;
+  for (const [socket, info] of players.entries()) {
+    if (String(info.id) === String(id)) {
+      targetSocket = socket;
+      break;
+    }
+  }
+
+  if (!targetSocket) {
+    return res.status(404).json({ error: "Player not found or offline" });
+  }
+
+  targetSocket.send(JSON.stringify({ type: "kicked" }));
+  targetSocket.close();
+
+  res.json({ message: `Player ${id} kicked successfully` });
+});
+
+server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });

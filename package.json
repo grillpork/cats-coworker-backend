@@ -32,7 +32,8 @@
     "multer": "^2.2.0",
     "nodemon": "^3.1.14",
     "pg": "^8.22.0",
-    "sharp": "^0.35.3"
+    "sharp": "^0.35.3",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/pg": "^8.20.0",
