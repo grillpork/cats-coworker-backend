@@ -12,8 +12,14 @@ import mapRouter from "./module/map/route.js";
 const app = express();
 const PORT = process.env.PORT || 4000;
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "https://catako.site",
+  process.env.FRONTEND_URL
+].filter(Boolean);
+
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: allowedOrigins,
   credentials: true
 }));
 app.use(morgan("dev"));
