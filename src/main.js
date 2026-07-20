@@ -71,23 +71,56 @@ wss.on("connection", (ws) => {
         
         const targetRoom = room || "Server Room A";
 
+        // Count active players in targetRoom (excluding re-joining socket for same user)
+        const currentRoomPlayers = [];
+        for (const [socket, info] of players.entries()) {
+          if (socket !== ws && info.room === targetRoom && info.id !== user.id) {
+            currentRoomPlayers.push(info);
+          }
+        }
+
+        if (currentRoomPlayers.length >= 6) {
+          ws.send(JSON.stringify({
+            type: "room_full",
+            reason: "Server room is full! (Maximum 6 players per room)"
+          }));
+          ws.close();
+          return;
+        }
+
+        // Assign lowest available slotIndex (0 to 5)
+        const usedSlots = new Set(currentRoomPlayers.map(p => p.slotIndex));
+        let assignedSlot = 0;
+        for (let i = 0; i < 6; i++) {
+          if (!usedSlots.has(i)) {
+            assignedSlot = i;
+            break;
+          }
+        }
+
         // Save player info associated with this socket
         players.set(ws, {
           id: user.id,
           username: user.username || `User-${user.id}`,
           room: targetRoom,
+          slotIndex: assignedSlot,
           x: x || 600,
           y: y || 400
         });
 
-        // 1. Send currently online players in the same room to the newly joined player
+        // 1. Send currently online players & assigned slot to newly joined player
         const onlinePlayers = [];
         for (const [socket, info] of players.entries()) {
           if (socket !== ws && info.room === targetRoom) {
             onlinePlayers.push(info);
           }
         }
-        ws.send(JSON.stringify({ type: "players_list", players: onlinePlayers }));
+        ws.send(JSON.stringify({
+          type: "joined_room",
+          slotIndex: assignedSlot,
+          room: targetRoom,
+          players: onlinePlayers
+        }));
 
         // 2. Broadcast the new player only to other connected clients in the same room
         const joinAlert = JSON.stringify({

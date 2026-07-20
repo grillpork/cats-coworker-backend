@@ -26,6 +26,6 @@ export const roomsTable = pgTable("rooms", {
     name: varchar({ length: 255 }).unique().notNull(),
     mapId: integer("map_id").references(() => mapsTable.id).notNull(),
     hostId: integer("host_id").references(() => usersTable.id).notNull(),
-    maxPlayers: integer("max_players").default(10).notNull(),
+    maxPlayers: integer("max_players").default(6).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });

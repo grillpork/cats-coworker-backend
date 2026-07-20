@@ -1,5 +1,5 @@
 import { db } from "../../config/db.js";
-import { mapsTable, spritesTable, roomsTable } from "../../db/schema.js";
+import { mapsTable, spritesTable, roomsTable, usersTable } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { r2Client, R2_BUCKET_NAME, R2_PUBLIC_URL } from "../../middleware/r2.js";
@@ -253,6 +253,10 @@ export const getAllRooms = async (req, res) => {
       const maps = await db.select().from(mapsTable).where(eq(mapsTable.id, room.mapId)).limit(1);
       const mapData = maps[0] || null;
 
+      // Fetch host details
+      const hostUsers = await db.select().from(usersTable).where(eq(usersTable.id, room.hostId)).limit(1);
+      const hostUsername = hostUsers[0]?.username || hostUsers[0]?.email?.split('@')[0] || "Unknown Host";
+
       // Get player count from active WebSocket sessions
       const activePlayersMap = global.activePlayersMap;
       let playerCount = 0;
@@ -264,6 +268,8 @@ export const getAllRooms = async (req, res) => {
 
       roomsWithDetails.push({
         ...room,
+        maxPlayers: 6,
+        hostUsername,
         map: mapData,
         playerCount,
       });
@@ -301,12 +307,17 @@ export const createRoomInstance = async (req, res) => {
       name,
       mapId,
       hostId: userId,
-      maxPlayers: 10,
+      maxPlayers: 6,
     }).returning();
 
-    // Attach map layout details and 0 players
+    const hostUsers = await db.select().from(usersTable).where(eq(usersTable.id, userId)).limit(1);
+    const hostUsername = hostUsers[0]?.username || hostUsers[0]?.email?.split('@')[0] || "Unknown Host";
+
+    // Attach map layout details, host username, and 0 players
     res.status(201).json({
       ...newRoom,
+      maxPlayers: 6,
+      hostUsername,
       map: mapTemplate[0],
       playerCount: 0
     });
