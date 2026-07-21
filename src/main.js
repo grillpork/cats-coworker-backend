@@ -12,6 +12,9 @@ import catRouter from "./module/cats/route.js";
 import mapRouter from "./module/map/route.js";
 import characterRouter from "./module/character/route.js";
 import storageRouter from "./module/storage/route.js";
+import { authenticateToken, requireAdmin } from "./middleware/auth.js";
+import { catPlacementsTable } from "./db/schema.js";
+import { eq, and } from "drizzle-orm";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -369,8 +372,10 @@ wss.on("connection", (ws) => {
   });
 });
 
+
+
 // Admin management endpoints for Server Room
-app.get("/api/admin/online-players", (req, res) => {
+app.get("/api/admin/online-players", authenticateToken, requireAdmin, (req, res) => {
   const online = [];
   for (const info of players.values()) {
     online.push(info);
@@ -378,7 +383,7 @@ app.get("/api/admin/online-players", (req, res) => {
   res.json(online);
 });
 
-app.post("/api/admin/broadcast", (req, res) => {
+app.post("/api/admin/broadcast", authenticateToken, requireAdmin, (req, res) => {
   const { message } = req.body;
   if (!message) {
     return res.status(400).json({ error: "Message is required" });
@@ -398,7 +403,7 @@ app.post("/api/admin/broadcast", (req, res) => {
   res.json({ message: "Announcement broadcasted successfully" });
 });
 
-app.post("/api/admin/kick/:id", (req, res) => {
+app.post("/api/admin/kick/:id", authenticateToken, requireAdmin, (req, res) => {
   const { id } = req.params;
 
   let targetSocket = null;
@@ -417,6 +422,86 @@ app.post("/api/admin/kick/:id", (req, res) => {
   targetSocket.close();
 
   res.json({ message: `Player ${id} kicked successfully` });
+});
+
+// Admin Cat Placements Management endpoints
+app.get("/api/admin/placements", authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const placements = await db
+      .select({
+        id: catPlacementsTable.id,
+        userId: catPlacementsTable.userId,
+        slotIndex: catPlacementsTable.slotIndex,
+        catData: catPlacementsTable.catData,
+        userName: usersTable.name,
+        userEmail: usersTable.email,
+      })
+      .from(catPlacementsTable)
+      .leftJoin(usersTable, eq(catPlacementsTable.userId, usersTable.id));
+    res.json(placements);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post("/api/admin/placements", authenticateToken, requireAdmin, async (req, res) => {
+  const { userId, slotIndex, catData } = req.body;
+  if (!userId || slotIndex === undefined || !catData) {
+    return res.status(400).json({ error: "userId, slotIndex, and catData are required" });
+  }
+  try {
+    const existing = await db
+      .select()
+      .from(catPlacementsTable)
+      .where(
+        and(
+          eq(catPlacementsTable.userId, parseInt(userId, 10)),
+          eq(catPlacementsTable.slotIndex, parseInt(slotIndex, 10))
+        )
+      )
+      .limit(1);
+
+    let placement;
+    if (existing.length > 0) {
+      [placement] = await db
+        .update(catPlacementsTable)
+        .set({
+          catData,
+          updatedAt: new Date()
+        })
+        .where(eq(catPlacementsTable.id, existing[0].id))
+        .returning();
+    } else {
+      [placement] = await db
+        .insert(catPlacementsTable)
+        .values({
+          userId: parseInt(userId, 10),
+          slotIndex: parseInt(slotIndex, 10),
+          catData
+        })
+        .returning();
+    }
+    res.json({ message: "Placement updated successfully", placement });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.delete("/api/admin/placements/:id", authenticateToken, requireAdmin, async (req, res) => {
+  const { id } = req.params;
+  try {
+    const [deleted] = await db
+      .delete(catPlacementsTable)
+      .where(eq(catPlacementsTable.id, parseInt(id, 10)))
+      .returning();
+
+    if (!deleted) {
+      return res.status(404).json({ error: "Placement not found" });
+    }
+    res.json({ message: "Placement deleted successfully", placement: deleted });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 });
 
 server.listen(PORT, () => {

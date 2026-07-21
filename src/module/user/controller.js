@@ -16,14 +16,16 @@ export const updateProfile = async (req, res) => {
     }
     
     if (avatar !== undefined) {
-      const [matchingChar] = await db
-        .select()
-        .from(charactersTable)
-        .where(eq(charactersTable.avatarUrl, avatar))
-        .limit(1);
+      if (avatar && !avatar.startsWith("/uploads/") && !avatar.startsWith("http")) {
+        const [matchingChar] = await db
+          .select()
+          .from(charactersTable)
+          .where(eq(charactersTable.avatarUrl, avatar))
+          .limit(1);
 
-      if (!matchingChar) {
-        return res.status(400).json({ error: "Invalid character selection. You must choose a character existing in the system." });
+        if (!matchingChar) {
+          return res.status(400).json({ error: "Invalid character selection. You must choose a character existing in the system." });
+        }
       }
       updateData.avatar = avatar;
     }
