@@ -115,7 +115,8 @@ wss.on("connection", (ws) => {
           x: x || 600,
           y: y || 400,
           heldCat: data.heldCat || null,
-          sp: sp || 0
+          sp: sp || 0,
+          avatar: user.avatar || null
         });
 
         if (!roomCatsMap.has(targetRoom)) {
