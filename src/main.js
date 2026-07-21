@@ -327,6 +327,24 @@ wss.on("connection", (ws) => {
           }
         }
       }
+
+      if (data.type === "chat_message") {
+        const player = players.get(ws);
+        if (player) {
+          const payload = JSON.stringify({
+            type: "chat_broadcast",
+            senderId: player.id,
+            senderName: player.username,
+            message: data.message,
+            timestamp: new Date().toISOString()
+          });
+          for (const [socket, info] of players.entries()) {
+            if (info.room === player.room && socket.readyState === 1) {
+              socket.send(payload);
+            }
+          }
+        }
+      }
     } catch (err) {
       console.error("WS Message Error:", err);
     }
