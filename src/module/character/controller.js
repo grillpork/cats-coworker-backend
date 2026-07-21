@@ -3,27 +3,25 @@ import { charactersTable } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 
 export const addCharacter = async (req, res) => {
-  const { name, avatarUrl } = req.body;
+  const { name, price } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ error: "Character name is required" });
   }
 
-  if (!avatarUrl || !avatarUrl.trim()) {
-    return res.status(400).json({ error: "avatarUrl is required" });
+  if (!req.file) {
+    return res.status(400).json({ error: "Please upload an image file for the character avatar" });
   }
 
-  // Enforce validation to match relative files or standard URLs
-  if (!avatarUrl.startsWith('/') && !avatarUrl.startsWith('http://') && !avatarUrl.startsWith('https://')) {
-    return res.status(400).json({ error: "Invalid avatarUrl format. It must start with '/' or HTTP scheme." });
-  }
+  const avatarUrl = `/uploads/${req.file.filename}`;
 
   try {
     const [newChar] = await db
       .insert(charactersTable)
       .values({
         name: name.trim(),
-        avatarUrl: avatarUrl.trim(),
+        avatarUrl,
+        price: price ? parseInt(price, 10) : 0,
       })
       .returning();
 
@@ -33,7 +31,7 @@ export const addCharacter = async (req, res) => {
     });
   } catch (error) {
     if (error.code === '23505') { // Unique constraint violation (avatarUrl)
-      return res.status(400).json({ error: "A character with this avatarUrl already exists" });
+      return res.status(400).json({ error: "A character with this avatar already exists" });
     }
     console.error("Add Character Error:", error);
     res.status(500).json({ error: error.message });
@@ -72,6 +70,49 @@ export const deleteCharacter = async (req, res) => {
     });
   } catch (error) {
     console.error("Delete Character Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateCharacter = async (req, res) => {
+  const { id } = req.params;
+  const { name, price } = req.body;
+
+  if (!id) {
+    return res.status(400).json({ error: "Character ID is required" });
+  }
+
+  try {
+    const updateData = {};
+    if (name !== undefined) updateData.name = name.trim();
+    if (price !== undefined) updateData.price = parseInt(price, 10);
+    if (req.file) {
+      updateData.avatarUrl = `/uploads/${req.file.filename}`;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ error: "No fields to update" });
+    }
+
+    const [updated] = await db
+      .update(charactersTable)
+      .set(updateData)
+      .where(eq(charactersTable.id, parseInt(id, 10)))
+      .returning();
+
+    if (!updated) {
+      return res.status(404).json({ error: "Character not found" });
+    }
+
+    res.json({
+      message: "Character updated successfully",
+      character: updated
+    });
+  } catch (error) {
+    if (error.code === '23505') {
+      return res.status(400).json({ error: "A character with this avatar already exists" });
+    }
+    console.error("Update Character Error:", error);
     res.status(500).json({ error: error.message });
   }
 };

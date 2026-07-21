@@ -142,3 +142,49 @@ export const updateUserSp = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+import { sql } from "drizzle-orm";
+import fs from "fs";
+import path from "path";
+
+export const getStorageInfo = async (req, res) => {
+  try {
+    // 1. Get database size from PostgreSQL
+    const dbSizeResult = await db.execute(sql`SELECT pg_database_size(current_database())`);
+    const dbSizeBytes = parseInt(dbSizeResult.rows[0]?.pg_database_size || "0", 10);
+
+    // 2. Get uploads folder size
+    let uploadsSizeBytes = 0;
+    const uploadDir = "uploads/";
+    if (fs.existsSync(uploadDir)) {
+      const files = fs.readdirSync(uploadDir);
+      for (const file of files) {
+        const stats = fs.statSync(path.join(uploadDir, file));
+        if (stats.isFile()) {
+          uploadsSizeBytes += stats.size;
+        }
+      }
+    }
+
+    // Total size used in bytes
+    const totalSizeBytes = dbSizeBytes + uploadsSizeBytes;
+
+    // Define capacity limit in bytes (e.g. 50 MB for this app context)
+    const limitBytes = 50 * 1024 * 1024; // 50MB limit
+
+    res.json({
+      dbSizeBytes,
+      uploadsSizeBytes,
+      totalSizeBytes,
+      limitBytes,
+      dbSizePretty: (dbSizeBytes / 1024 / 1024).toFixed(2) + " MB",
+      uploadsSizePretty: (uploadsSizeBytes / 1024 / 1024).toFixed(2) + " MB",
+      totalSizePretty: (totalSizeBytes / 1024 / 1024).toFixed(2) + " MB",
+      limitPretty: (limitBytes / 1024 / 1024).toFixed(2) + " MB",
+      percentage: parseFloat(((totalSizeBytes / limitBytes) * 100).toFixed(1))
+    });
+  } catch (error) {
+    console.error("Get Storage Info Error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};

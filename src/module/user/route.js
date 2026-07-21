@@ -3,7 +3,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { authenticateToken, requireAdmin } from "../../middleware/auth.js";
-import { updateProfile, getAllUsers, updateUserRole, getUserSp, updateUserSp } from "./controller.js";
+import { updateProfile, getAllUsers, updateUserRole, getUserSp, updateUserSp, getStorageInfo } from "./controller.js";
 
 const router = Router();
 
@@ -11,6 +11,7 @@ router.get("/all", authenticateToken, requireAdmin, getAllUsers);
 router.put("/role", authenticateToken, requireAdmin, updateUserRole);
 router.get("/sp", authenticateToken, getUserSp);
 router.put("/sp", authenticateToken, updateUserSp);
+router.get("/storage-info", authenticateToken, getStorageInfo);
 
 // Configure multer storage
 const storage = multer.diskStorage({
