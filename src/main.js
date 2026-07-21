@@ -70,7 +70,7 @@ wss.on("connection", (ws) => {
       const data = JSON.parse(messageStr);
       
       if (data.type === "join") {
-        const { user, room, x, y } = data;
+        const { user, room, x, y, sp } = data;
         const targetRoom = room || "Server Room A";
 
         if (!user || !user.id) return;
@@ -112,7 +112,8 @@ wss.on("connection", (ws) => {
           slotIndex: assignedSlot,
           x: x || 600,
           y: y || 400,
-          heldCat: data.heldCat || null
+          heldCat: data.heldCat || null,
+          sp: sp || 0
         });
 
         if (!roomCatsMap.has(targetRoom)) {
@@ -166,6 +167,23 @@ wss.on("connection", (ws) => {
         for (const [socket, info] of players.entries()) {
           if (socket !== ws && info.room === player.room && socket.readyState === 1) {
             socket.send(moveAlert);
+          }
+        }
+      }
+
+      if (data.type === "sync_sp") {
+        const player = players.get(ws);
+        if (player) {
+          player.sp = data.sp;
+          const payload = JSON.stringify({
+            type: "player_sp_updated",
+            id: player.id,
+            sp: player.sp
+          });
+          for (const [socket, info] of players.entries()) {
+            if (socket !== ws && info.room === player.room && socket.readyState === 1) {
+              socket.send(payload);
+            }
           }
         }
       }
