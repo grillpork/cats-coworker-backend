@@ -1,5 +1,5 @@
 import { db } from "../../config/db.js";
-import { usersTable } from "../../db/schema.js";
+import { usersTable, charactersTable } from "../../db/schema.js";
 import { eq } from "drizzle-orm";
 
 export const updateProfile = async (req, res) => {
@@ -8,8 +8,25 @@ export const updateProfile = async (req, res) => {
 
   try {
     const updateData = {};
-    if (name !== undefined) updateData.name = name;
-    if (avatar !== undefined) updateData.avatar = avatar;
+    if (name !== undefined) {
+      if (typeof name !== 'string' || !name.trim()) {
+        return res.status(400).json({ error: "Invalid name" });
+      }
+      updateData.name = name.trim();
+    }
+    
+    if (avatar !== undefined) {
+      const [matchingChar] = await db
+        .select()
+        .from(charactersTable)
+        .where(eq(charactersTable.avatarUrl, avatar))
+        .limit(1);
+
+      if (!matchingChar) {
+        return res.status(400).json({ error: "Invalid character selection. You must choose a character existing in the system." });
+      }
+      updateData.avatar = avatar;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return res.status(400).json({ error: "No fields to update" });

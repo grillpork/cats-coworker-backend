@@ -1,4 +1,5 @@
 import { boolean, integer, pgTable, varchar, timestamp } from "drizzle-orm/pg-core";
+import { charactersTable } from "./character.js";
 export const usersTable = pgTable("users", {
     id: integer().primaryKey().generatedAlwaysAsIdentity(),
     name: varchar({ length: 255 }).notNull(),
@@ -8,6 +9,7 @@ export const usersTable = pgTable("users", {
     providerId: varchar("provider_id", { length: 255 }),
     roleId: integer("role_id").references(() => RolesTable.id),
     avatar: varchar({ length: 255 }),
+    characterId: integer("character_id").references(() => charactersTable.id),
     sp: integer().default(0).notNull(),
     createdAt: timestamp("created_at").defaultNow().notNull(),
 });

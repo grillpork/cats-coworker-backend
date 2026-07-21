@@ -10,6 +10,7 @@ import authRouter from "./module/auth/route.js";
 import userRouter from "./module/user/route.js";
 import catRouter from "./module/cats/route.js";
 import mapRouter from "./module/map/route.js";
+import characterRouter from "./module/character/route.js";
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -36,6 +37,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/user", userRouter);
 app.use("/api/cats", catRouter);
 app.use("/api/maps", mapRouter);
+app.use("/api/characters", characterRouter);
 
 // Sample root route
 app.get("/", (req, res) => {
@@ -72,6 +74,15 @@ wss.on("connection", (ws) => {
         const targetRoom = room || "Server Room A";
 
         if (!user || !user.id) return;
+
+        // Disconnect duplicate connection for the same user ID if exists (Ghost session cleanup)
+        for (const [socket, info] of players.entries()) {
+          if (String(info.id) === String(user.id)) {
+            socket.send(JSON.stringify({ type: "kicked", reason: "Logged in from another session" }));
+            socket.close();
+            players.delete(socket);
+          }
+        }
 
         // Count existing players in this target room
         const roomPlayers = Array.from(players.values()).filter(p => p.room === targetRoom);
